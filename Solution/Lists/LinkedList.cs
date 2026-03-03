@@ -4,38 +4,26 @@ namespace Solution.Lists;
 
 public class LinkedList<T> : IList<T> where T : IComparable<T>
 {
-    private class Node
-    {
-        public T Value;
-        public Node[] Forward;
-
-        public Node(int level, T value)
-        {
-            Forward = new Node[level];
-            Value = value;
-        }
-    }
-
-    private const int MAX_LEVEL = 6;
-    private Node head = new Node(MAX_LEVEL, default);
-    private int level = 1;
-    private int count = 0;
-    private Random rand = new Random();
+    private const int MaxLevel = 6;
+    private readonly Random _rand = new();
+    private readonly SkipNode<T> _head = new(MaxLevel, default);
+    private int _level = 1;
+    private int _count;
 
     private int RandomLevel()
     {
         int lvl = 1;
-        while (rand.NextDouble() < 0.5 && lvl < MAX_LEVEL)
+        while (_rand.NextDouble() < 0.5 && lvl < MaxLevel)
             lvl++;
         return lvl;
     }
 
     public int Add(T value)
     {
-        Node[] update = new Node[MAX_LEVEL];
-        Node current = head;
+        SkipNode<T>[] update = new SkipNode<T>[MaxLevel];
+        SkipNode<T> current = _head;
 
-        for (int i = level - 1; i >= 0; i--)
+        for (int i = _level - 1; i >= 0; i--)
         {
             while (current.Forward[i] != null &&
                    current.Forward[i].Value.CompareTo(value) < 0)
@@ -46,14 +34,14 @@ public class LinkedList<T> : IList<T> where T : IComparable<T>
 
         int newLevel = RandomLevel();
 
-        if (newLevel > level)
+        if (newLevel > _level)
         {
-            for (int i = level; i < newLevel; i++)
-                update[i] = head;
-            level = newLevel;
+            for (int i = _level; i < newLevel; i++)
+                update[i] = _head;
+            _level = newLevel;
         }
 
-        Node newNode = new Node(newLevel, value);
+        SkipNode<T> newNode = new(newLevel, value);
 
         for (int i = 0; i < newLevel; i++)
         {
@@ -61,74 +49,96 @@ public class LinkedList<T> : IList<T> where T : IComparable<T>
             update[i].Forward[i] = newNode;
         }
 
-        count++;
-        return count - 1;
+        _count++;
+        return _count - 1;
     }
 
     public void Clear()
     {
-        head = new Node(MAX_LEVEL, default);
-        count = 0;
-        level = 1;
+        for (int i = 0; i < MaxLevel; i++)
+            _head.Forward[i] = null;
+        _count = 0;
+        _level = 1;
     }
 
     public bool Contains(T value) => IndexOf(value) >= 0;
 
     public int IndexOf(T value)
     {
-        int i = 0;
-        foreach (var v in this)
+        int index = 0;
+        foreach (var item in this)
         {
-            if (v.Equals(value)) return i;
-            i++;
+            if (item.Equals(value))
+                return index;
+            index++;
         }
 
         return -1;
     }
 
-    public void Insert(int index, T value) => Add(value);
-    public void Remove(T value) => RemoveAt(IndexOf(value));
+    public void Insert(int index, T value)
+    {
+        Add(value);
+    }
+
+    public void Remove(T value)
+    {
+        RemoveAt(IndexOf(value));
+    }
 
     public void RemoveAt(int index)
     {
-        /* упрощено */
+        if (index < 0 || index >= _count)
+            throw new ListException("Invalid index");
+
+        List<T> temp = new(this);
+        temp.RemoveAt(index);
+        Clear();
+        foreach (var item in temp)
+            Add(item);
     }
 
     public IList<T> SubList(int from, int to)
     {
+        if (from < 0 || to >= _count || from > to)
+            throw new ListException("Invalid range");
+
         LinkedList<T> sub = new();
         int i = 0;
-        foreach (var v in this)
+        foreach (var item in this)
         {
             if (i >= from && i <= to)
-                sub.Add(v);
+                sub.Add(item);
             i++;
         }
 
         return sub;
     }
 
-    public int Count => count;
+    public int Count => _count;
 
     public T this[int index]
     {
         get
         {
+            if (index < 0 || index >= _count)
+                throw new ListException("Invalid index");
+
             int i = 0;
-            foreach (var v in this)
+            foreach (var item in this)
             {
-                if (i == index) return v;
+                if (i == index) return item;
                 i++;
             }
 
-            throw new ListException("Invalid index");
+            throw new ListException("Not found");
         }
         set => throw new NotImplementedException();
     }
 
     public IEnumerator<T> GetEnumerator()
     {
-        Node current = head.Forward[0];
+        var current = _head.Forward[0];
         while (current != null)
         {
             yield return current.Value;
@@ -137,4 +147,23 @@ public class LinkedList<T> : IList<T> where T : IComparable<T>
     }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    
+    public List<List<T>> GetLevels()
+    {
+        List<List<T>> levels = new();
+
+        for (int i = _level - 1; i >= 0; i--)
+        {
+            List<T> lvl = new();
+            var current = _head.Forward[i];
+            while (current != null)
+            {
+                lvl.Add(current.Value);
+                current = current.Forward[i];
+            }
+            levels.Add(lvl);
+        }
+
+        return levels;
+    }
 }
